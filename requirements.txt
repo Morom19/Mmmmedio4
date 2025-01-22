@@ -1,2 +1,4 @@
 google-generativeai
-pyTelegramBotAPI
+Flask
+python-telegram-bot
+gunicorn
