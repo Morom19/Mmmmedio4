@@ -1,41 +1,43 @@
-import google.generativeai as genai
-import telebot
+from flask import Flask, request, jsonify
+   import google.generativeai as genai
+   from telegram import Update, Bot
+   from telegram.ext import Dispatcher, CommandHandler, MessageHandler, Filters
 
-# Configure your Gemini API key
-API_KEY = "AIzaSyAR1W8my5ETltKpwwZrld0zxF53VNYRsVo"
-genai.configure(api_key=API_KEY)
+   app = Flask(__name__)
 
-# Initialize the generative model
-model = genai.GenerativeModel('gemini-pro')
+   # Configure your Gemini API key
+   API_KEY = "AIzaSyAR1W8my5ETltKpwwZrld0zxF53VNYRsVo"
+   genai.configure(api_key=API_KEY)
 
-# Telegram Bot Token
-TELEGRAM_TOKEN = "7592033135:AAHl6LQ_M3r4LiZqrihPtpyfgt5bjYgphPk"
+   # Initialize the Telegram Bot
+   TELEGRAM_TOKEN = "7592033135:AAHl6LQ_M3r4LiZqrihPtpyfgt5bjYgphPk"
+   bot = Bot(token=TELEGRAM_TOKEN)
+   dispatcher = Dispatcher(bot, None, workers=0)
 
-# Initialize the bot
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
+   # Initialize the generative model
+   model = genai.GenerativeModel('gemini-pro')
 
-# Command to start the bot
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    bot.reply_to(message, "Chatbot initialized! Start your conversation below. Type /exit to end the chat.")
+   def start(update, context):
+       update.message.reply_text('Welcome! Send me a message and I will respond.')
 
-# Handle all other messages
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
-    user_input = message.text
+   def handle_message(update, context):
+       user_input = update.message.text
+       chat = model.start_chat()
+       try:
+           response = chat.send_message(user_input)
+           update.message.reply_text(response.text)
+       except Exception as e:
+           update.message.reply_text(f"An error occurred: {e}")
 
-    if user_input == "/exit":
-        bot.reply_to(message, "Chat ended. Goodbye!")
-        return
+   # Set up command and message handlers
+   dispatcher.add_handler(CommandHandler("start", start))
+   dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
 
-    try:
-        chat = model.start_chat()
-        response = chat.send_message(user_input)
-        bot.reply_to(message, f"Chatbot: {response.text}")
-    except Exception as e:
-        bot.reply_to(message, f"An error occurred: {e}")
+   @app.route('/webhook', methods=['POST'])
+   def webhook():
+       update = Update.de_json(request.get_json(force=True), bot)
+       dispatcher.process_update(update)
+       return 'ok'
 
-# Start the bot
-if __name__ == "__main__":
-    print("Starting bot...")
-    bot.polling()
+   if __name__ == "__main__":
+       app.run(port=5000)
